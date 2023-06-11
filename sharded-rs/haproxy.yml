@@ -50,14 +50,21 @@ data:
         timeout server 1m   
         server mongos1 mongos-0.mongo:27017 check
 
-    frontend master
+    frontend master_sh0
         bind *:27001
         mode tcp
         option tcplog
         timeout client  1m
-        default_backend master_backend
+        default_backend master_sh0_backend
 
-    backend master_backend
+    frontend master_sh1
+        bind *:27002
+        mode tcp
+        option tcplog
+        timeout client  1m
+        default_backend master_sh1_backend
+
+    backend master_sh0_backend
         mode tcp
         option tcplog
         option log-health-checks
@@ -67,7 +74,17 @@ data:
         timeout connect 10s
         timeout server 1m   
         server master1 mongodb-sh0-0.mongo:27017 check
-        server master2 mongodb-sh1-0.mongo:27017 check
+
+    backend master_sh1_backend
+        mode tcp
+        option tcplog
+        option log-health-checks
+        option redispatch
+        log global
+        balance roundrobin
+        timeout connect 10s
+        timeout server 1m   
+        server master1 mongodb-sh1-0.mongo:27017 check
 
     frontend rserve_frontend
         bind *:27017
@@ -102,19 +119,23 @@ spec:
     - name: http
       protocol: TCP
       port: 8000
-      nodePort: 31001
-    - name: mongo
-      protocol: TCP
-      port: 27017
-      nodePort: 31002
-    - name: mongo-master
-      protocol: TCP
-      port: 27001
-      nodePort: 32001
+      nodePort: 31080
     - name: mongos
       protocol: TCP
       port: 27000
       nodePort: 32000
+    - name: mongo-read
+      protocol: TCP
+      port: 27017
+      nodePort: 31017
+    - name: mongo-master-sh0
+      protocol: TCP
+      port: 27001
+      nodePort: 32001
+    - name: mongo-master-sh1
+      protocol: TCP
+      port: 27002
+      nodePort: 32002
   type: LoadBalancer # NodePort
 ---
 apiVersion: apps/v1
