@@ -35,13 +35,7 @@ mongosh /data/cert/nodes.mongodb
 
 ### Expose Connection to public
 
-- S1
-  - set URI with `directConnection=true`
-  - Use HAproxy to replace k8s LoadBalancer
-- S2
-  - shard replica set, it has `mongos` as router
-
-I use S1 and setup HAproxy deployment, run command to deploy it. You must set more or equal to 2 replicas. So when master goes down and switch master node, i can ensure HAproxy is high available.
+Setup HAproxy deployment, run command to deploy it. You must set more or equal to 2 replicas. So when master goes down and switch master node, i can ensure HAproxy is high available.
 
 ```bash
 kubectl apply -f haproxy.yml
