@@ -1,0 +1,124 @@
+# discovery peers
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: mongo-cluster
+  labels:
+    name: mongo
+spec:
+  ports:
+    - port: 27017
+  clusterIP: None
+  selector:
+    app: mongo
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb-rs
+  namespace: mongo-cluster
+spec:
+  serviceName: mongo
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+        selector: mongo
+    spec:
+      terminationGracePeriodSeconds: 30
+      serviceAccountName: mongo-account
+      initContainers:
+        - name: init-mydb
+          image: mongo:6.0.5
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          command:
+            - bash
+            - -c
+            - |
+              [[ `hostname` =~ -([0-9]+)$ ]] || exit 1
+              ordinal=${BASH_REMATCH[1]}
+              cp /data/secret/rs$ordinal.pem /data/cert/mongo.pem
+              cp /data/secret/ca.crt /data/cert/mongoCA.crt
+              if [[ $ordinal -eq 0 ]]; then 
+                cp /data/script/nodes.mongodb /data/cert/nodes.mongodb
+                chmod 777 /data/cert/nodes.mongodb
+              fi
+              chown mongodb /data/cert/
+              chown mongodb /data/db/
+              chown mongodb /data/log/
+          volumeMounts:
+            - name: mongo-cert
+              mountPath: /data/cert
+            - name: mongo-cert-secret
+              mountPath: /data/secret
+              readOnly: true
+            - name: mongo-data
+              mountPath: /data/db
+            - name: mongo-log
+              mountPath: /data/log
+            - name: mongo-script
+              mountPath: /data/script
+      containers:
+        - name: mongodb
+          image: mongo:6.0.5
+          securityContext:
+            runAsUser: 999
+          command:
+            - bash
+            - "-c"
+            - mongod --config /data/conf/mongo.conf
+          resources:
+            limits:
+              cpu: 1
+              memory: 1500Mi
+            requests:
+              cpu: 500m
+              memory: 1000Mi
+          ports:
+            - name: mongo-port
+              containerPort: 27017
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+            - name: mongo-cert
+              mountPath: /data/cert
+              readOnly: true
+            - name: mongo-config
+              mountPath: /data/conf
+              readOnly: true
+            - name: mongo-log
+              mountPath: /data/log
+      volumes:
+        - name: mongo-cert
+          emptyDir: {}
+        - name: mongo-cert-secret
+          secret:
+            secretName: mongo-certs
+        - name: mongo-config
+          configMap:
+            name: mongo-conf
+        - name: mongo-script
+          configMap:
+            name: mongo-initial-script
+        - name: mongo-log
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: standard
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Delete
+    whenScaled: Delete

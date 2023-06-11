@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongo-conf
+  namespace: mongo-cluster
+data:
+  mongo.conf: |
+    # mongod.conf
+
+    # for documentation of all options, see:
+    #   http://docs.mongodb.org/manual/reference/configuration-options/
+
+    # Where and how to store data.
+    storage:
+      dbPath: /data/db
+      journal:
+        enabled: true
+    #  engine:
+    #  wiredTiger:
+
+    # where to write logging data.
+    systemLog:
+      destination: file
+      logAppend: true
+      path:  /data/log/mongod.log
+
+    # network interfaces
+    net:
+      port: 27017
+      bindIp: 0.0.0.0
+      tls:
+        mode: preferTLS  # requireTLS
+        certificateKeyFile: /data/cert/mongo.pem
+        CAFile: /data/cert/mongoCA.crt
+        clusterFile: /data/cert/mongo.pem
+        allowInvalidCertificates: true
+        allowConnectionsWithoutCertificates: false
+        disabledProtocols: TLS1_0
+
+    #processManagement:
+
+    #operationProfiling:
+
+    replication:
+      replSetName: "rs0"
+      oplogSizeMB: 2000
+      enableMajorityReadConcern: true
+
+    #sharding:
+
+    ## Enterprise-Only Options:
+
+    #auditLog:
+
+    #snmp:
+
+    security:
+      authorization: enabled
+      clusterAuthMode: x509
+
+    setParameter:
+      enableLocalhostAuthBypass: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongo-initial-script
+  namespace: mongo-cluster
+data:
+  nodes.mongodb: |
+    use('admin')
+
+    var config = {
+        "_id": "rs0",
+        "version": 1,
+        "members": [
+            {
+                "_id": 1,
+                "host": "mongodb-rs-0.mongo:27017",
+                "priority": 7
+            },
+            {
+                "_id": 2,
+                "host": "mongodb-rs-1.mongo:27017",
+                "priority": 2
+            },
+            {
+                "_id": 3,
+                "host": "mongodb-rs-2.mongo:27017",
+                "priority": 1
+            }
+        ]
+    }
+
+    try {
+        rs.initiate(config, { force: true })
+        print('initiate successfully')
+
+        for (let i = 0; i < 7; i++) {
+            try {
+                db.createUser({
+                    user: 'tom-rs',
+                    pwd: 'jerry',
+                    roles: ["root"]
+                })
+                print('Create user successfully')
+                break
+            } catch (e) {
+                if (e.codeName == 'NotWritablePrimary') {
+                    print('Create user failed, because this node does not become primary. Retrying.......')
+                    sleep(3 * 1000)
+                    continue
+                }
+                print(JSON.stringify(e))
+                print('Create user failed, do it manually')
+                break
+            }
+        }
+
+    } catch(e) {
+        print('initiated failed: ' + JSON.stringify(e))
+    }

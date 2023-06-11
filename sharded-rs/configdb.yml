@@ -1,0 +1,220 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: configdb
+  namespace: mongo-sh-cluster
+spec:
+  serviceName: mongo
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+        selector: mongo
+    spec:
+      terminationGracePeriodSeconds: 30
+      serviceAccountName: mongo-account
+      initContainers:
+        - name: init-mydb
+          image: mongo:6.0.5
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          command:
+            - bash
+            - -c
+            - |
+              [[ `hostname` =~ -([0-9]+)$ ]] || exit 1
+              ordinal=${BASH_REMATCH[1]}
+              cp /data/secret/configdb-$ordinal.pem /data/cert/mongo.pem
+              cp /data/secret/ca.crt /data/cert/mongoCA.crt
+              if [[ $ordinal -eq 0 ]]; then 
+                cp /data/script/configdb.mongodb /data/cert/nodes.mongodb
+                chmod 777 /data/cert/nodes.mongodb
+              fi
+              chown mongodb /data/cert/
+              chown mongodb /data/db/
+              chown mongodb /data/log/
+          volumeMounts:
+            - name: mongo-cert
+              mountPath: /data/cert
+            - name: mongo-cert-secret
+              mountPath: /data/secret
+              readOnly: true
+            - name: mongo-data
+              mountPath: /data/db
+            - name: mongo-log
+              mountPath: /data/log
+            - name: mongo-script
+              mountPath: /data/script
+      containers:
+        - name: mongodb
+          image: mongo:6.0.5
+          securityContext:
+            runAsUser: 999
+          command:
+            - bash
+            - "-c"
+            - mongod --config /data/conf/mongo.conf
+          resources:
+            limits:
+              cpu: 1
+              memory: 1500Mi
+            requests:
+              cpu: 500m
+              memory: 1000Mi
+          ports:
+            - name: mongo-port
+              containerPort: 27017
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+            - name: mongo-cert
+              mountPath: /data/cert
+              readOnly: true
+            - name: mongo-config
+              mountPath: /data/conf
+              readOnly: true
+            - name: mongo-log
+              mountPath: /data/log
+      volumes:
+        - name: mongo-cert
+          emptyDir: {}
+        - name: mongo-cert-secret
+          secret:
+            secretName: mongo-certs
+        - name: mongo-config
+          configMap:
+            name: mongo-conf
+        - name: mongo-script
+          configMap:
+            name: mongo-sh-initial-script
+        - name: mongo-log
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: standard
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Delete
+    whenScaled: Delete
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongo-conf
+  namespace: mongo-sh-cluster
+data:
+  mongo.conf: |
+    # mongod.conf
+
+    # for documentation of all options, see:
+    #   http://docs.mongodb.org/manual/reference/configuration-options/
+
+    # Where and how to store data.
+    storage:
+      dbPath: /data/db
+      journal:
+        enabled: true
+    #  engine:
+    #  wiredTiger:
+
+    # where to write logging data.
+    systemLog:
+      destination: file
+      logAppend: true
+      path:  /data/log/mongod.log
+
+    # network interfaces
+    net:
+      port: 27017
+      bindIp: 0.0.0.0
+      tls:
+        mode: preferTLS  # requireTLS
+        certificateKeyFile: /data/cert/mongo.pem
+        CAFile: /data/cert/mongoCA.crt
+        clusterFile: /data/cert/mongo.pem
+        allowInvalidCertificates: true
+        allowConnectionsWithoutCertificates: false
+        disabledProtocols: TLS1_0
+
+    #processManagement:
+
+    #operationProfiling:
+
+    replication:
+      replSetName: configdb
+      oplogSizeMB: 2000
+      # enableMajorityReadConcern: true
+
+    sharding:
+      clusterRole: configsvr
+
+    ## Enterprise-Only Options:
+
+    #auditLog:
+
+    #snmp:
+
+    security:
+      authorization: enabled
+      clusterAuthMode: x509
+
+    setParameter:
+      enableLocalhostAuthBypass: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongo-sh-initial-script
+  namespace: mongo-sh-cluster
+data:
+  configdb.mongodb: |
+    try {
+        rs.initiate(
+            {
+                _id: "configdb",
+                configsvr: true,
+                members: [
+                    { _id: 0, host: "configdb-0.mongo:27017" },
+                    { _id: 1, host: "configdb-1.mongo:27017" },
+                ]
+            }
+        )
+
+        use('admin')
+        // mongos and configdb use same user system, but rs0 did not
+
+        for (let i = 0; i < 7; i++) {
+            try {
+                db.createUser({
+                    user: 'tom-mongos',
+                    pwd: 'jerry',
+                    roles: ["root"]
+                })
+                print('Create user successfully')
+                break
+            } catch (e) {
+                if (e.codeName == 'NotWritablePrimary') {
+                    print('Create user failed, because this node does not become primary. Retrying.......')
+                    sleep(3 * 1000)
+                    continue
+                }
+                print(JSON.stringify(e))
+                print('Create user failed, do it manually')
+                break
+            }
+        }
+        print('initiate successfully')
+    } catch (e) {
+        print('initiated failed: ' + JSON.stringify(e))
+    }

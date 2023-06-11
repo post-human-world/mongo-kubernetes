@@ -1,0 +1,133 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-cfg
+  namespace: mongo-cluster
+data:
+  haproxy.conf: |
+    global
+      daemon
+      maxconn 4096
+
+    defaults
+      mode http
+      balance leastconn
+      retries 3
+      option httpchk GET /health HTTP/1.0\r\nHost:\ app.example.com
+      option http-server-close
+      option dontlognull
+      timeout connect   300ms
+      timeout check    1000ms
+      timeout client  30000ms
+      timeout server  30000ms
+
+    #Load balancer stats page access at hostname:8000/haproxy_stats
+    frontend stats
+        bind *:8000
+        mode http
+        log global
+        stats enable
+        stats realm Haproxy\ Statistics 
+        stats uri /haproxy_stats
+        stats hide-version
+        stats auth admin:admin@rserve
+
+    frontend master
+        bind *:27000
+        mode tcp
+        option tcplog
+        timeout client  1m
+        default_backend master_backend
+
+    backend master_backend
+        mode tcp
+        option tcplog
+        option log-health-checks
+        option redispatch
+        log global
+        balance roundrobin
+        timeout connect 10s
+        timeout server 1m   
+        server master1 mongodb-rs-0.mongo:27017 check
+
+    frontend rserve_frontend
+        bind *:27017
+        mode tcp
+        option tcplog
+        timeout client  1m
+        default_backend rserve_backend
+
+    backend rserve_backend
+        mode tcp
+        option tcplog
+        option log-health-checks
+        option redispatch
+        log global
+        balance roundrobin
+        timeout connect 10s
+        timeout server 1m
+        server rserve2 mongodb-rs-1.mongo:27017 check
+        server rserve3 mongodb-rs-2.mongo:27017 check
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: haproxy-service
+  namespace: mongo-cluster
+spec:
+  selector:
+    app: haproxy
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8000
+      nodePort: 31001
+    - name: mongo
+      protocol: TCP
+      port: 27017
+      nodePort: 31002
+    - name: mongo-master
+      protocol: TCP
+      port: 27000
+      nodePort: 32000
+  type: LoadBalancer # NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: haproxy
+  namespace: mongo-cluster
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: haproxy
+  template:
+    metadata:
+      labels:
+        app: haproxy
+    spec:
+      containers:
+        - name: haproxy
+          image: haproxy:2.6.14
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 1
+              memory: 1Gi
+          volumeMounts:
+            - name: haproxy-conf
+              mountPath: /usr/local/etc/haproxy/haproxy.cfg
+              subPath: haproxy.cfg
+      volumes:
+        - name: haproxy-conf
+          configMap:
+            name: haproxy-cfg
+            items:
+              - key: haproxy.conf
+                path: haproxy.cfg
