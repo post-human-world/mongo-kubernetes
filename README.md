@@ -1,4 +1,4 @@
-# MongoDB
+# MongoDB High availability cluster
 
 Tested on:
 - Platform: Windows10
