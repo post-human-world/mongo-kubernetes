@@ -137,6 +137,8 @@ Currently, i do not recommend to use [MongoDB Community Kubernetes Operator](htt
 
 You dont have to change haproxy configuration, what you need is switch mongodb compose TLS mode to `ON` and specify *CA* and *mongos certificate*.
 
+`directConnection=true` is necessary since mongo server return kubernetes dns that can not be resolve by public DNS if you set false
+
 ```
 mongodb://tom-mongos:jerry@localhost:27000/?authMechanism=DEFAULT&directConnection=true&tlsCAFile=F%3A%5CKChan+Notes%5CTech%5CRepositories%5CTech-examples%5CKubernetes%5Crepository%5Cunknown-clusters%5Cdatabase%5Cmongo%5Ckey%5CmongoCA.crt&tls=true&tlsInsecure=true&tlsCertificateKeyFile=F%3A%5CKChan+Notes%5CTech%5CRepositories%5CTech-examples%5CKubernetes%5Crepository%5Cunknown-clusters%5Cdatabase%5Cmongo%5Ckey%5Cmongos-0.mongo.pem
 ```
