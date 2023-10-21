@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: configdb
-  namespace: mongo-sh-cluster
+  namespace: mongo
 spec:
   serviceName: mongo
   replicas: 2
@@ -112,7 +112,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mongo-conf
-  namespace: mongo-sh-cluster
+  namespace: mongo
 data:
   mongo.conf: |
     # mongod.conf
@@ -176,7 +176,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mongo-sh-initial-script
-  namespace: mongo-sh-cluster
+  namespace: mongo
 data:
   configdb.mongodb: |
     try {

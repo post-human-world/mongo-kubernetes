@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: mongo-certs
-  namespace: mongo-sh-cluster
+  namespace: mongo
 type: Opaque
 stringData:
   ca.crt: |

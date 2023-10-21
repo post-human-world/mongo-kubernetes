@@ -2,13 +2,13 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: mongo-account
-  namespace: mongo-sh-cluster
+  namespace: mongo
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: mongo-role
-  namespace: mongo-sh-cluster
+  namespace: mongo
 rules:
   - apiGroups: [""]
     resources: ["configmaps"]
@@ -27,7 +27,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: mongo_role_binding
-  namespace: mongo-sh-cluster
+  namespace: mongo
 subjects:
   - kind: ServiceAccount
     name: mongo-account

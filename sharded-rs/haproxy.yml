@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: haproxy-cfg
-  namespace: mongo-sh-cluster
+  namespace: mongo
 data:
   haproxy.conf: |
     global
@@ -25,6 +25,7 @@ data:
     frontend stats
         bind *:8000
         mode http
+        option httplog
         log global
         stats enable
         stats realm Haproxy\ Statistics 
@@ -33,7 +34,7 @@ data:
         stats auth admin:admin@rserve
 
     frontend mongos
-        bind *:27000
+        bind *:27000 accept-proxy
         mode tcp
         option tcplog
         timeout client  1m
@@ -43,75 +44,68 @@ data:
         mode tcp
         option tcplog
         option log-health-checks
-        option redispatch
-        log global
         balance roundrobin
         timeout connect 10s
         timeout server 1m   
-        server mongos1 mongos-0.mongo:27017 check
+        server mongos1 mongos-0.mongo:27017 check inter 2s
 
     frontend master_sh0
-        bind *:27001
+        bind *:27001 accept-proxy
         mode tcp
         option tcplog
-        timeout client  1m
+        timeout client 1m
         default_backend master_sh0_backend
 
     frontend master_sh1
-        bind *:27002
+        bind *:27002 accept-proxy
         mode tcp
         option tcplog
-        timeout client  1m
+        timeout client 1m
         default_backend master_sh1_backend
 
     backend master_sh0_backend
         mode tcp
         option tcplog
         option log-health-checks
-        option redispatch
-        log global
         balance roundrobin
         timeout connect 10s
         timeout server 1m   
-        server master1 mongodb-sh0-0.mongo:27017 check
+        server master1 mongodb-sh0-0.mongo:27017 check inter 2s
 
     backend master_sh1_backend
         mode tcp
         option tcplog
         option log-health-checks
-        option redispatch
-        log global
         balance roundrobin
         timeout connect 10s
         timeout server 1m   
-        server master1 mongodb-sh1-0.mongo:27017 check
+        server master1 mongodb-sh1-0.mongo:27017 check inter 2s
 
     frontend rserve_frontend
-        bind *:27017
+        bind *:27017 accept-proxy
         mode tcp
         option tcplog
-        timeout client  1m
+        timeout client 1m
         default_backend rserve_backend
 
     backend rserve_backend
         mode tcp
         option tcplog
         option log-health-checks
-        option redispatch
-        log global
         balance roundrobin
+        option redispatch 2
         timeout connect 10s
         timeout server 1m
-        server sh0-1 mongodb-sh0-1.mongo:27017 check
-        server sh0-2 mongodb-sh0-2.mongo:27017 check
-        server sh1-0 mongodb-sh1-1.mongo:27017 check
-        server sh1-1 mongodb-sh1-2.mongo:27017 check
+        server sh0-1 mongodb-sh0-1.mongo:27017 check inter 2s
+        server sh0-2 mongodb-sh0-2.mongo:27017 check inter 2s
+        server sh1-0 mongodb-sh1-1.mongo:27017 check inter 2s
+        server sh1-1 mongodb-sh1-2.mongo:27017 check inter 2s
 ---
 kind: Service
 apiVersion: v1
 metadata:
   name: haproxy-service
-  namespace: mongo-sh-cluster
+  namespace: mongo
 spec:
   selector:
     app: haproxy
@@ -142,7 +136,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: haproxy
-  namespace: mongo-sh-cluster
+  namespace: mongo
 spec:
   replicas: 2
   selector:

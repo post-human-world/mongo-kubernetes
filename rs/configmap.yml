@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mongo-conf
-  namespace: mongo-cluster
+  namespace: mongo
 data:
   mongo.conf: |
     # mongod.conf
@@ -65,7 +65,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mongo-initial-script
-  namespace: mongo-cluster
+  namespace: mongo
 data:
   nodes.mongodb: |
     use('admin')

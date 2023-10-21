@@ -3,7 +3,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: mongo
-  namespace: mongo-sh-cluster
+  namespace: mongo
   labels:
     name: mongo
 spec:
@@ -17,7 +17,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: mongodb-sh0
-  namespace: mongo-sh-cluster
+  namespace: mongo
 spec:
   serviceName: mongo
   replicas: 3
@@ -131,7 +131,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: mongodb-sh1
-  namespace: mongo-sh-cluster
+  namespace: mongo
 spec:
   serviceName: mongo
   replicas: 3
@@ -245,7 +245,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mongo-sh-conf
-  namespace: mongo-sh-cluster
+  namespace: mongo
 data:
   mongo-sh0.conf: |
     # mongod.conf
@@ -367,7 +367,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mongo-sh-initial-script
-  namespace: mongo-sh-cluster
+  namespace: mongo
 data:
   sh0.mongodb: |
     use('admin')
